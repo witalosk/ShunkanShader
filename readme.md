@@ -15,6 +15,7 @@
 
 ### Day3
 テーマ「夏」
+![Memories of Summer](./ScreenShots/day03.gif)
 
 ### Day4
 テーマ「ライゾマティクス」
