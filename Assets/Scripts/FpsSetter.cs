@@ -1,7 +1,12 @@
-namespace DefaultNamespace
+using UnityEngine;
+
+public class FpsSetter : MonoBehaviour
 {
-    public class FpsSetter
+    [SerializeField] private int _fps = 60;
+
+    private void Awake()
     {
-        
+        Application.targetFrameRate = _fps;
+        QualitySettings.vSyncCount = 0;
     }
 }
