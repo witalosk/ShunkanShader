@@ -51,28 +51,30 @@ Shader "Unlit/MadTracer"
                 float distace;
                 float roughness; // 0.0 - 1.0: roughness of the surface, > 1.0: emission 
                 float color;
+                bool transparent;
             };
 
-            Surface GetSurface(float distance, float roughness, float color)
+            Surface GetSurface(float distance, float roughness, float color, bool transparent)
             {
                 Surface s;
                 s.distace = distance;
                 s.roughness = roughness;
                 s.color = color;
+                s.transparent = transparent;
                 return s;
             }
 
-            void GetCloserSurface(inout Surface d, float x, float y, float z)
+            void GetCloserSurface(inout Surface d, float distance, float roughness, float color, bool transparent)
             {
-                if (x < d.distace)
+                if (distance < d.distace)
                 {
-                    d = GetSurface(x, y, z);
+                    d = GetSurface(distance, roughness, color, transparent);
                 }
             }
 
             float3 GetColor(Surface s)
             {
-                return float3(1. + s.color, 1., 1. - s.color);
+                return float3(1. + s.color, 1., 1. - s.color) * step(1., s.roughness);
             }
 
             // 3D noise function (IQ, Shane)
@@ -112,24 +114,26 @@ Shader "Unlit/MadTracer"
 
             Surface Scene(float3 p)
             {
-                float3 q;
-                Surface d = GetSurface(1, 0., 0.);
+                float3 q = p;
+                Surface d = GetSurface(1, 0., 0., true);
                 // float floornoise = .8 * Noise(3. * p + 2.3 * _Time.y) + 0.1 * Noise(20. * p + 2.2 * _Time.y);
-                GetCloserSurface(d, min(5. - p.z, 1.5 + p.y), 0.1 + 0.3 * step(fmod(4. * p.z, 1.), .5), .0);
-                GetCloserSurface(d, length(p + float3(0., 0., 1.9 + sin(_Time.y))) - .500, .99, 1.);
-                q = p;
+                GetCloserSurface(d, min(5. - p.z, 1.5 + p.y), 0.1 + 0.3 * step(fmod(4. * p.z, 1.), .5), .0, false);
+                GetCloserSurface(d, length(p + float3(0., 0., 1.9 + sin(_Time.y))) - .500, .99, 1., true);
                 pR(q.xy, 0.6 * _Time.y);
 
-                GetCloserSurface(d, length(q + float3(0, 0., 1.9 + sin(_Time.y))) - .445 - 0.09 * sin(43. * q.x - q.y + 10. * _Time.y), 1., 0.1);
+                GetCloserSurface(d, length(q + float3(0, 0., 1.9 + sin(_Time.y))) - .445 - 0.09 * sin(43. * q.x - q.y + 10. * _Time.y), 1., 0.1, true);
                 if (_Time.y > 24.)p.y -= 0.1 * _Time.y - 2.4;
                 q = abs(p - round(p - .5) - .5);
                 if (_Time.y > 24.)p.y += 0.1 * _Time.y - 2.4;
+
+                // Lattice (by Slerpy)
                 float g = min(min(SdBox(q.xy), SdBox(q.xz)), SdBox(q.yz)) - .05;
                 float c = min(.6 - abs(p.x + p.z), .45 - abs(p.y));
-                if (_Time.y > 12.) GetCloserSurface(d, max(g, c), .1, 0.5); //lattice (by Slerpy)
-                
-                if (_Time.y > 18.) GetCloserSurface(d, SdBox(p.zx + float2(2, 2)) - .5, 1., .4);
-                if (_Time.y > 17.3) GetCloserSurface(d, SdBox(p.zx + float2(2, -2)) - .5, 1., -.4);
+                if (_Time.y > 12.) GetCloserSurface(d, max(g, c), 0.1, -0.9, true);
+
+                // Back Boxes
+                if (_Time.y > 18.) GetCloserSurface(d, SdBox(p.zx + float2(2, 2)) - .5, 1., .4, true);
+                if (_Time.y > 17.3) GetCloserSurface(d, SdBox(p.zx + float2(2, -2)) - .5, 1., -.4, true);
                 
                 return d;
             }
@@ -155,22 +159,22 @@ Shader "Unlit/MadTracer"
                 {
                     seed = frac(seed + _Time.y * float(i + 1) + .1);
                     
-                    // camPos = lerp(camPos0, HashHs(camPos, seed), 0.002); // antialiasing
-                    // dir = lerp(dir0, HashHs(dir0, seed), 0.06 * s.distace); // antialiasing
+                    camPos = lerp(camPos0, HashHs(camPos, seed), 0.002); // antialiasing
+                    dir = lerp(dir0, HashHs(dir0, seed), 0.06 * s.distace); // antialiasing
                     
                     float3 currentPos = camPos + dir * rayCorr;
                     float3 normal = SceneNormal(currentPos); // normal of new origin
                     s = Scene(currentPos);
-                    rayCorr += s.color != 0.0 ? 0.25 * abs(s.distace) + 0.0008 : 0.25 * s.distace;
-
-                    result += 0.007 * (GetColor(s) * step(1.0, s.roughness));
+                    rayCorr += s.transparent ? 0.25 * abs(s.distace) + 0.0008 : 0.25 * s.distace; // カラーが0の時は不透明な物体として扱う
+                    result += 0.007 * GetColor(s);
 
                     // reflection
                     seed = frac(seed + _Time.y * float(i + 2) + 0.1);
                     float3 reflectedDir = lerp(reflect(dir, normal), HashHs(normal, seed), s.roughness); // reflect depending on roughness
                     Surface reflected = Scene(currentPos + reflectedDir * reflectedCorr);
-                    reflectedCorr += reflected.color != 0. ? 0.25 * abs(reflected.distace) : 0.25 * reflected.distace;
-                    result += .007 * (GetColor(reflected) * step(1., reflected.roughness));
+                    // Surface reflected = Scene(currentPos + reflectedDir * (Noise(currentPos + seed) + 1));
+                    reflectedCorr += reflected.transparent ? 0.25 * abs(reflected.distace) : 0.25 * reflected.distace;
+                    result += 0.007 * GetColor(reflected);
                 }
 
                 return result;
