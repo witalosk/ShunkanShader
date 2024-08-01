@@ -55,9 +55,21 @@ Shader "Unlit/MadTracer"
 
             float3 scol;
 
-            void GetCloserSurface(inout float3 d, float x, float y, float z)
+            Surface GetSurface(float distance, float roughness, float color)
             {
-                if (x < d.x) d = float3(x, y, z);
+                Surface s;
+                s.distace = distance;
+                s.roughness = roughness;
+                s.color = color;
+                return s;
+            }
+
+            void GetCloserSurface(inout Surface d, float x, float y, float z)
+            {
+                if (x < d.distace)
+                {
+                    d = GetSurface(x, y, z);
+                }
             }
 
             // 3D noise function (IQ, Shane)
@@ -95,64 +107,65 @@ Shader "Unlit/MadTracer"
             }
 
 
-            float3 Scene(float3 p)
+            Surface Scene(float3 p)
             {
                 float3 q;
-                float3 d = float2(0, 1.).yxx;
-                float floornoise = .8 * Noise(3. * p + 2.3 * _Time.y) + 0.1 * Noise(20. * p + 2.2 * _Time.y);
+                Surface d = GetSurface(1, 0., 0.);
+                // float floornoise = .8 * Noise(3. * p + 2.3 * _Time.y) + 0.1 * Noise(20. * p + 2.2 * _Time.y);
                 GetCloserSurface(d, min(5. - p.z, 1.5 + p.y), 0.1 + 0.3 * step(fmod(4. * p.z, 1.), .5), .0);
                 GetCloserSurface(d, length(p + float3(0., 0., 1.9 + sin(_Time.y))) - .500, .99, 1.);
                 q = p;
                 pR(q.xy, 0.6 * _Time.y);
 
-                GetCloserSurface(
-                    d, length(q + float3(0, 0., 1.9 + sin(_Time.y))) - .445 - 0.09 * sin(
-                        43. * q.x - q.y + 10. * _Time.y), 1., 0.1);
-                if (_Time.y > 24.)p.y -= 0.1 * _Time.y - 2.4;
-                q = abs(p - round(p - .5) - .5);
-                if (_Time.y > 24.)p.y += 0.1 * _Time.y - 2.4;
-                float g = min(min(SdBox(q.xy), SdBox(q.xz)), SdBox(q.yz)) - .05;
-                float c = min(.6 - abs(p.x + p.z), .45 - abs(p.y));
-                if (_Time.y > 12.) GetCloserSurface(d, max(g, c), .1, 0.5); //lattice (by Slerpy)
-
-                if (_Time.y > 18.)GetCloserSurface(d, SdBox(p.zx + float2(2, 2)) - .5, 1., .4);
-                if (_Time.y > 17.3)GetCloserSurface(d, SdBox(p.zx + float2(2, -2)) - .5, 1., -.4);
+                GetCloserSurface(d, length(q + float3(0, 0., 1.9 + sin(_Time.y))) - .445 - 0.09 * sin(43. * q.x - q.y + 10. * _Time.y), 1., 0.1);
+                // if (_Time.y > 24.)p.y -= 0.1 * _Time.y - 2.4;
+                // q = abs(p - round(p - .5) - .5);
+                // if (_Time.y > 24.)p.y += 0.1 * _Time.y - 2.4;
+                // float g = min(min(SdBox(q.xy), SdBox(q.xz)), SdBox(q.yz)) - .05;
+                // float c = min(.6 - abs(p.x + p.z), .45 - abs(p.y));
+                // if (_Time.y > 12.) GetCloserSurface(d, max(g, c), .1, 0.5); //lattice (by Slerpy)
+                //
+                // if (_Time.y > 18.)GetCloserSurface(d, SdBox(p.zx + float2(2, 2)) - .5, 1., .4);
+                // if (_Time.y > 17.3)GetCloserSurface(d, SdBox(p.zx + float2(2, -2)) - .5, 1., -.4);
+                //
                 return d;
             }
 
 
             float3 SceneNormal(float3 p)
             {
-                float m = Scene(p).x;
-                float2 e = float2(0, .05);
-                return normalize(m - float3(Scene(p - e.yxx).x, Scene(p - e.xyx).x, Scene(p - e.xxy).x));
+                float m = Scene(p).distace;
+                float2 e = float2(0, 0.05);
+                return normalize(m - float3(Scene(p - e.yxx).distace, Scene(p - e.xyx).distace, Scene(p - e.xxy).distace));
             }
 
 
-            void MadTracer(in float3 ro1, in float3 rd1, in float seed)
+            float3 MadTracer(in float3 camPos, in float3 dir, in float seed)
             {
-                scol = 0.0;
+                float3 scol = 0.0;
                 float t = 0., t2 = 0.;
-                float3 m1, m2, rd2, ro2, nor2;
-                float3 roold = ro1;
-                float3 rdold = rd1;
-                m1.x = 0.;
+                Surface m1, m2;
+                float3 rd2, ro2, nor2;
+                float3 roold = camPos;
+                float3 rdold = dir;
+                m1.distace = 0.;
                 for (int i = 0; i < 140; i++)
                 {
                     seed = frac(seed + _Time.y * float(i + 1) + .1);
-                    ro1 = lerp(roold, HashHs(ro1, seed), 0.002); // antialiasing
-                    rd1 = lerp(rdold, HashHs(rdold, seed), 0.06 * m1.x); // antialiasing
-                    m1 = Scene(ro1 + rd1 * t);
-                    t += m1.z != 0. ? 0.25 * abs(m1.x) + 0.0008 : 0.25 * m1.x;
-                    ro2 = ro1 + rd1 * t;
+                    camPos = lerp(roold, HashHs(camPos, seed), 0.002); // antialiasing
+                    dir = lerp(rdold, HashHs(rdold, seed), 0.06 * m1.distace); // antialiasing
+                    m1 = Scene(camPos + dir * t);
+                    t += m1.color != 0. ? 0.25 * abs(m1.distace) + 0.0008 : 0.25 * m1.distace;
+                    ro2 = camPos + dir * t;
                     nor2 = SceneNormal(ro2); // normal of new origin
                     seed = frac(seed + _Time.y * float(i + 2) + .1);
-                    rd2 = lerp(reflect(rd1, nor2), HashHs(nor2, seed), m1.y); // reflect depending on material
+                    rd2 = lerp(reflect(dir, nor2), HashHs(nor2, seed), m1.roughness); // reflect depending on material
                     m2 = Scene(ro2 + rd2 * t2);
-                    t2 += m2.z != 0. ? 0.25 * abs(m2.x) : 0.25 * m2.x;
-                    scol += .007 * (float3(1. + m2.z, 1., 1. - m2.z) * step(1., m2.y) + float3(1. + m1.z, 1., 1. - m1.z)
-                        * step(1., m1.y));
+                    t2 += m2.color != 0. ? 0.25 * abs(m2.distace) : 0.25 * m2.distace;
+                    scol += .007 * (float3(1. + m2.color, 1., 1. - m2.color) * step(1., m2.roughness) + float3(1. + m1.color, 1., 1. - m1.color) * step(1., m1.roughness));
                 }
+
+                return scol;
             }
 
             float4 frag(v2f input) : SV_Target
@@ -169,19 +182,19 @@ Shader "Unlit/MadTracer"
                 float2 uv2 = (2. * fragCoord.xy - _ScreenParams.xy) / _ScreenParams.xy.x;
                 ro = float3(0, 0, -5);
                 rd = normalize(float3(uv2, 1));
-                // rotate scene
-                if (_Time.y > 12.)
-                {
-                    pR(rd.xz, .5 * -sin(.17 * _Time.y));
-                    pR(rd.yz, .5 * sin(.19 * _Time.y));
-                    pR(rd.xy, .4 * -cos(.15 * _Time.y));
-                }
+                // // rotate scene
+                // if (_Time.y > 12.)
+                // {
+                //     pR(rd.xz, .5 * -sin(.17 * _Time.y));
+                //     pR(rd.yz, .5 * sin(.19 * _Time.y));
+                //     pR(rd.xy, .4 * -cos(.15 * _Time.y));
+                // }
                 // render    
-                MadTracer(ro, rd, seed);
+                col.xyz = MadTracer(ro, rd, seed);
 
                 float fade = min(3. * abs(sin((3.1415 * (_Time.y - 12.) / 24.))), 1.);
                 // fragColor =clamp(float4(0.7*scol+0.7*bufa, 0.)*fade, 0., 1.); // with blur
-                col = clamp(float4(0.7 * scol, 0.) * fade, 0., 1.);
+                col = clamp(float4(0.7 * col.xyz, 0.) * fade, 0., 1.);
 
                 return col;
             }
