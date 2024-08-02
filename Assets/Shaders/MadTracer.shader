@@ -74,7 +74,15 @@ Shader "Unlit/MadTracer"
 
             float3 GetColor(Surface s)
             {
-                return float3(1. + s.color, 1., 1. - s.color) * step(1., s.roughness);
+                return step(1., s.roughness) * (
+                    s.color < 1.0 ? float3(1, 1, 1) :
+                    s.color < 2.0 ? float3(0, 1, 0) :
+                    s.color < 3.0 ? float3(1, 0, 1) :
+                    s.color < 4.0 ? float3(1, 1, 0) :
+                    s.color < 5.0 ? float3(0, 1, 1) :
+                    s.color < 6.0 ? float3(1, 0, 0) :
+                    float3(0, 0, 1)
+                );
             }
 
             // 3D noise function (IQ, Shane)
@@ -132,8 +140,8 @@ Shader "Unlit/MadTracer"
                 if (_Time.y > 12.) GetCloserSurface(d, max(g, c), 0.1, -0.9, true);
 
                 // Back Boxes
-                if (_Time.y > 18.) GetCloserSurface(d, SdBox(p.zx + float2(2, 2)) - .5, 1., .4, true);
-                if (_Time.y > 17.3) GetCloserSurface(d, SdBox(p.zx + float2(2, -2)) - .5, 1., -.4, true);
+                if (_Time.y > 18.) GetCloserSurface(d, SdBox(p.zx + float2(2, 2)) - .5, 1., 6.5, true);
+                if (_Time.y > 17.3) GetCloserSurface(d, SdBox(p.zx + float2(2, -2)) - .5, 1., 2.5, true);
                 
                 return d;
             }
