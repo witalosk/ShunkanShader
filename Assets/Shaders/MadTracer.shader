@@ -158,30 +158,35 @@ Shader "Unlit/MadTracer"
             float3 MadTracer(in float3 camPos, in float3 dir, in float seed)
             {
                 float3 result = 0.0;
-                float rayCorr = 0.0, reflectedCorr = 0.0;
-                Surface s;
+                float rayCoef = 0.0, reflectedCoef = 0.0;
+                Surface surf;
                 float3 camPos0 = camPos;
                 float3 dir0 = dir;
-                s.distace = 0.0;
+                surf.distace = 0.0;
                 for (int i = 0; i < 140; i++)
                 {
                     seed = frac(seed + _Time.y * float(i + 1) + .1);
                     
-                    camPos = lerp(camPos0, HashHs(camPos, seed), 0.002); // antialiasing
-                    dir = lerp(dir0, HashHs(dir0, seed), 0.06 * s.distace); // antialiasing
+                    // camPos = lerp(camPos0, HashHs(camPos, seed), 0.002); // antialiasing
+                    // dir = lerp(dir0, HashHs(dir0, seed), 0.06 * s.distace); // antialiasing
                     
-                    float3 currentPos = camPos + dir * rayCorr;
+                    float3 currentPos = camPos + dir * rayCoef;
                     float3 normal = SceneNormal(currentPos); // normal of new origin
-                    s = Scene(currentPos);
-                    rayCorr += s.transparent ? 0.25 * abs(s.distace) + 0.0008 : 0.25 * s.distace; // カラーが0の時は不透明な物体として扱う
-                    result += 0.007 * GetColor(s);
+                    surf = Scene(currentPos);
+                    // if (surf.distace < 0.001){
+                    //     result = dot(normal, float3(1,1,-1));
+                    //     break; // break if hit
+                    // }
+                    
+                    rayCoef += surf.transparent ? 0.25 * abs(surf.distace) + 0.0008 : 0.25 * surf.distace; // カラーが0の時は不透明な物体として扱う
+                    result += 0.007 * GetColor(surf);
 
                     // reflection
                     seed = frac(seed + _Time.y * float(i + 2) + 0.1);
-                    float3 reflectedDir = lerp(reflect(dir, normal), HashHs(normal, seed), s.roughness); // reflect depending on roughness
-                    Surface reflected = Scene(currentPos + reflectedDir * reflectedCorr);
+                    float3 reflectedDir = lerp(reflect(dir, normal), HashHs(normal, seed), surf.roughness); // reflect depending on roughness
+                    Surface reflected = Scene(currentPos + reflectedDir * reflectedCoef);
                     // Surface reflected = Scene(currentPos + reflectedDir * (Noise(currentPos + seed) + 1));
-                    reflectedCorr += reflected.transparent ? 0.25 * abs(reflected.distace) : 0.25 * reflected.distace;
+                    reflectedCoef += reflected.transparent ? 0.25 * abs(reflected.distace) : 0.25 * reflected.distace;
                     result += 0.007 * GetColor(reflected);
                 }
 
