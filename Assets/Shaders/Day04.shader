@@ -72,8 +72,8 @@ Shader "Day04"
         o.uv = TRANSFORM_TEX(v.uv, _MainTex);
         return o;
     }
-    // #define GridSize (0.005 * (1 + (int)(_Time.y * 4) % 6))
-    #define GridSize 0.01
+    #define GridSize (0.005 * (1 + (int)(_Time.y * 4) % 6))
+    // #define GridSize 0.01
 
     float2 GetGridCoord(float2 uv)
     {
@@ -176,7 +176,7 @@ Shader "Day04"
         // col *= float4(ConvertHsvToRgb(float3(Rand(idx) + insideUv.y * 0.15, 0.5 + 0.5 * insideUv.x, 0.7)), 1) * 1.5;
         
         // return saturate(col);
-        return saturate(col) * (SdEquilateralTriangle(RotateVector(inGridCoord - 0.5, Pcg01((uint)gridCoord.x + 1000 * gridCoord.y) + _Time.y), 0.3 + Pcg01((uint)gridCoord.x + 1000 * gridCoord.y + _Time.y*100)) < 0.0 ? 1 : 0);
+        return saturate(col) * (SdEquilateralTriangle(RotateVector(inGridCoord - 0.5, Pcg01((uint)gridCoord.x + 1000 * gridCoord.y) + _Time.y), 0.1 + Pcg01((uint)gridCoord.x + 1000 * gridCoord.y + _Time.y*100)) < 0.0 ? 1 : 0);
     }
 
     ENDCG
