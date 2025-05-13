@@ -23,3 +23,7 @@
 ### Day5
 テーマ「はる」
 ![断片化された花弁](./ScreenShots/day05.gif)
+
+### Day6
+テーマ「スペース」
+![Inside something alive](./ScreenShots/day06.gif)
